@@ -1,46 +1,85 @@
 package com.example.musicplayer.ui
 
+import android.media.MediaPlayer
 import android.os.Bundle
+import android.view.View
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.SearchView
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.musicplayer.ui.theme.MusicplayerTheme
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.domain.model.MusicItem
+import com.example.musicplayer.R
+import com.example.musicplayer.viewmodel.MusicViewModel
+import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: MusicViewModel by viewModel()
+    private var mediaPlayer: MediaPlayer? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MusicplayerTheme {
-                // A surface container using the 'background' color from the theme
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    Greeting("Android")
+        setContentView(R.layout.activity_main)
+
+        val listView: RecyclerView = findViewById(R.id.recyclerView)
+        val btnPlay = findViewById<ImageView>(R.id.ivPlay)
+        val btnPause = findViewById<ImageView>(R.id.ivPause)
+        val adapter = MusicAdapter(
+            onItemClick = { item ->
+                playMusic(item)
+                btnPlay.visibility = View.GONE
+                btnPause.visibility = View.VISIBLE
+                findViewById<LinearLayout>(R.id.llMusicIndicator).visibility = View.VISIBLE
+                btnPlay.setOnClickListener {
+                    btnPlay.visibility = View.GONE
+                    btnPause.visibility = View.VISIBLE
+                    playMusic(item)
                 }
-            }
+                btnPause.setOnClickListener {
+                    btnPause.visibility = View.GONE
+                    btnPlay.visibility = View.VISIBLE
+                    pauseMusic(item)
+                }
+            },
+            currentlyPlayingId = viewModel.currentlyPlayingId
+        )
+        viewModel.music()
+        viewModel.musics.observe(this) {
+            adapter.submitList(it)
         }
+        listView.layoutManager = LinearLayoutManager(this)
+        listView.adapter = adapter
+        findViewById<SearchView>(R.id.searchView).setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                if (!query.isNullOrEmpty()) viewModel.search(query)
+                return true
+            }
+            override fun onQueryTextChange(newText: String?) : Boolean {
+                if (newText.isNullOrEmpty()) {
+                    viewModel.search("music")
+                } else {
+                    viewModel.search(newText)
+                }
+                return true
+            }
+        })
     }
-}
+    private fun playMusic(item: MusicItem) {
+        mediaPlayer?.release()
+        mediaPlayer = MediaPlayer().apply {
+            setDataSource(item.previewUrl)
+            prepare()
+            start()
+        }
+        viewModel.setPlaying(item.trackId)
+    }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MusicplayerTheme {
-        Greeting("Android")
+    private fun pauseMusic(item: MusicItem) {
+        mediaPlayer?.release()
+        mediaPlayer = MediaPlayer().apply {
+            setDataSource(item.previewUrl)
+            prepare()
+            pause()
+        }
     }
 }
